@@ -1,1 +1,2 @@
 0.1: An Empty Boot Loader. It Has 0's And A Signature. 
+0.2: A Hello World Boot Loader. Added A Procedure For Print Text. 
