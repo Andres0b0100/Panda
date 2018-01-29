@@ -10,46 +10,221 @@ first:
 	mov cl, 0x2
 	mov dh, 0x0
 	int 0x13
-		
-; Request The Data		
-	mov si, .msg
-	call procedures.puts
-; Get The Number
+
+.cls:	
+; Null
+	mov al, 0x0
+; Foreground Cyan
+	mov bl, 0xB
+; Clear the Screen
+	call procedures.cls
+.operation:
+; Function #3: Get Cursor Position
+	mov ah, 0x3
+; First Video Page
+	mov bh, 0x0
+; BIOS Video Interrupt
+	int 0x10
+; Clear The Screen If It's At The Last Row
+	cmp dh, 0x18
+	jge .cls
+; Get An Operand
 	xor cx,cx
 	call procedures.getn
-; Store The Number
-	mov [data], cx
-; Get The String Until A New Line
-	mov bh, 0xD
-	mov di, data+0x2
-	call procedures.gets
-	
-	jmp second
-	
-.msg db "Enter A Number And A String.",0xD,0x0
+; Save The Operand
+	push cx
+.switch:
+; Jump To The Corresponding Procedure
+		cmp al,'+'
+		je second.add
+		cmp al,'-'
+		je second.sub
+		cmp al,'*'
+		je second.mul
+		cmp al,'/'
+		je second.div
+		cmp al,'%'
+		je second.mod
+		cmp al,'&'
+		je second.and
+		cmp al,'|'
+		je second.or
+		cmp al,'^'
+		je second.xor
+		cmp al,'<'
+		je second.shl
+		cmp al,'>'
+		je second.shr
+		cmp al,'!'
+		je second.not
+		cmp al,'~'
+		je second.neg
+; Throw An Error If It's An Invalid Operator
+		jmp second.error
 
 	times 0x200-0x2-($-first) db 0x0
 	dw 0xAA55
 	
 second: 
-; Print The First Message
-	mov si, .msg1
+.add:
+; Get The Second operand
+		xor cx,cx
+		call procedures.getn
+	pop ax
+; Sum
+	add ax,cx
+	push ax
+; End
+		jmp .end
+.sub:
+; Get The Second Operand
+		xor cx,cx
+		call procedures.getn
+	pop ax
+; Substract
+	sub ax,cx
+	push ax
+; End
+		jmp .end
+.mul:
+; Get The Second operand
+		xor cx,cx
+		call procedures.getn
+	pop ax
+; Multiplicate
+	mul cx
+	push ax
+; End
+		jmp .end
+.div:
+; Get The Second operand
+		xor cx,cx
+		call procedures.getn
+; Catch Zero Division Error
+		test cx,cx
+		jz .error
+	pop ax
+; Divide
+	xor dx,dx
+	div cx
+; Return The Quotient
+	push ax
+; End
+		jmp .end
+.mod:
+; Get The Second operand
+		xor cx,cx
+		call procedures.getn
+; Catch Zero Division Error
+		test cx,cx
+		jz .error
+	pop ax
+; Divide
+	xor dx,dx
+	div cx
+; Return The Remainder
+	push dx
+; End
+		jmp .end
+.and:
+; Get The Second operand
+		xor cx,cx
+		call procedures.getn
+	pop ax
+; Bitwise AND
+	and ax,cx
+	push ax
+; End
+		jmp .end
+.or:
+; Get The Second operand
+		xor cx,cx
+		call procedures.getn
+	pop ax
+; Bitwise OR
+	or ax,cx
+	push ax
+; End
+		jmp .end
+.xor:
+; Get The Second operand
+		xor cx,cx
+		call procedures.getn
+	pop ax
+; Bitwise XOR
+	xor ax,cx
+	push ax
+; End
+		jmp .end
+.shl:
+; Get The Second operand
+		xor cx,cx
+		call procedures.getn
+	pop ax
+; Bit Left Shift
+	shl ax,cl
+	push ax
+; End
+		jmp .end
+.shr:
+; Get The Second operand
+		xor cx,cx
+		call procedures.getn
+	pop ax
+; Bit Right Shift 
+	shr ax,cl
+	push ax
+; End
+		jmp .end
+.not:
+; It's An Unary Operation
+	pop ax
+; Bitwise NOT
+	not ax
+	push ax
+; Write An Empty Character
+		mov al, 0x0
+		call procedures.putc
+; End
+		jmp .end
+.neg:
+; It's An Unary Operation
+	pop ax
+; Negate The Number
+	neg ax
+	push ax
+; Write An Empty Character
+		mov al, 0x0
+		call procedures.putc
+; End
+		jmp .end
+		
+.error:
+; Print The Error Message
+	pop ax
+	mov si, .msg
 	call procedures.puts
-; Print The Number
-	mov ax, [data]
+; Next Operation
+	jmp first.operation
+	
+.end:
+; Backspace
+		mov al, 0x8
+		call procedures.putc
+; Equal Sign
+		mov al, '='
+		call procedures.putc
+; Get And Print The Result
+	pop ax
 	call procedures.putn
-; Print The Second Message
-	mov si, .msg2
-	call procedures.puts
-; Print The String
-	mov si, data+0x2
-	call procedures.puts
-	
-	jmp $
-	
-.msg1 db "You Entered The Number ",0x0
-.msg2 db " And The String: ",0x0
+; Print A New Line
+	mov al, 0xD
+	call procedures.putc
+; Next Operation	
+	jmp first.operation
 
+.msg db " {[(<Error>)]} ",0xD,0x0
+	
 	times 0x200-($-second) db 0x0
 	
 procedures:

@@ -2,3 +2,4 @@
 0.2: A Hello World Boot Loader. Added A Procedure For Print Text. 
 0.3: A Two-Stage Boot Loader. Added A Second Stage. 
 0.4: An Interactive Boot Loader. Added New I/O Procedures. 
+0.5: A Simple Calculator. A Functional Calculator With 12 Operations. 
