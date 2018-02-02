@@ -1,231 +1,300 @@
-first:
+boot:
+; boot Loader Segment
 	mov ax, 0x7C0
 		mov ds,ax
 		mov es,ax
+		mov fs,ax
 
+; Function #2: Read Disk
 	mov ah, 0x2
-	mov al, 0x3
-	mov bx, second
+; Read 7 Sectors
+	mov al, 0x7
+; Offset
+	mov bx, loader
+; Cylinder
 	mov ch, 0x0
+; Sector
 	mov cl, 0x2
+; Head
 	mov dh, 0x0
+; BIOS Disk Interrupt
 	int 0x13
 
-.cls:	
+; Save The Disk	
+	mov [data.disk],dl
+
+; Check If Data Is Set	
+	mov ax, [data.kernel]
+	test ax,ax
+	jz .start
+	mov ax, [data.system]
+	test ax,ax
+	jz .start
+; Function #2: Get Keyboard Flags
+	mov ah, 0x2
+; BIOS Keyboard Interrupt
+	int 0x16
+; Load If CTRL Isn't Pressed
+	test al, 0x4
+	jz loader
+	
+.start:
 ; Null
 	mov al, 0x0
-; Foreground Cyan
+; Cyan Text
 	mov bl, 0xB
-; Clear the Screen
+; Fill The Screen
 	call procedures.cls
-.operation:
-; Function #3: Get Cursor Position
-	mov ah, 0x3
-; First Video Page
-	mov bh, 0x0
-; BIOS Video Interrupt
-	int 0x10
-; Clear The Screen If It's At The Last Row
-	cmp dh, 0x18
-	jge .cls
-; Get An Operand
+; Print The Commands
+	mov si, .commands
+	call procedures.puts
+.switch:
+; Get The Command
 	xor cx,cx
 	call procedures.getn
-; Save The Operand
+; Go To The Procedure
+	cmp cx, 0x0
+	je .lo
+	cmp cx, 0x1
+	je .fk
+	cmp cx, 0x2
+	je .sk
+	cmp cx, 0x3
+	je .fs
+	cmp cx, 0x4
+	je .ss
+	cmp cx, 0x5
+	je .sl
+; Default
+	jmp .start
+.fk:
+; Kernel Segment
+	mov bx, 0x8C0
+		mov ds,bx
+		mov es,bx
+; Null
+	xor bp,bp
+; Function #8: Get Disk Info
+	mov ah, 0x8
+; Disk
+	mov dl, [fs:data.disk]
+; BIOS Disk Interrupt
+	int 0x13
+.fkl:
+; Function #2: Read Disk
+	mov ah, 0x2
+; Read One Sector
+	mov al, 0x1
+; Null
+	xor bx,bx
+	xor ch,ch
+	xor dh,dh
+; Disk
+	mov dl, [fs:data]
+; BIOS Disk Interrupt
+	int 0x13
+; The Last Word Of The Sector
+	mov ax, [0x200-0x2]
+; Check If It's A Kernel
+	cmp ax, 0x46BB
+	je .fka
+.fkd:
+; Next Sector
+	dec cl
+	jnz .fkl
+.fke:
+; Boot Sector
+	mov bx, 0x7C0
+		mov ds,bx
+		mov es,bx
+; Next Command
+	jmp .switch
+.fka:
+; Size
+	mov al, [0x200-0x3]
+	mov [fs:data.kbuffer+bp],al
+	inc bp
+; Sector
+	mov [fs:data.kbuffer+bp],cl
+	inc bp
+; Print The Number And Name
 	push cx
-.switch:
-; Jump To The Corresponding Procedure
-		cmp al,'+'
-		je second.add
-		cmp al,'-'
-		je second.sub
-		cmp al,'*'
-		je second.mul
-		cmp al,'/'
-		je second.div
-		cmp al,'%'
-		je second.mod
-		cmp al,'&'
-		je second.and
-		cmp al,'|'
-		je second.or
-		cmp al,'^'
-		je second.xor
-		cmp al,'<'
-		je second.shl
-		cmp al,'>'
-		je second.shr
-		cmp al,'!'
-		je second.not
-		cmp al,'~'
-		je second.neg
-; Throw An Error If It's An Invalid Operator
-		jmp second.error
+		mov ax,bp
+		shr ax, 0x1
+		call procedures.putn
+		mov al, '>'
+		call procedures.putc
+		mov si, 0x200-0x14
+		call procedures.puts
+		mov al, 0xD
+		call procedures.putc
+	pop cx
+; Next
+	jmp .fkd
+	
+.sk:
+; Null
+	xor cx,cx
+; Get The Number
+	call procedures.getn
+; Duplicate The Number
+	mov bp,cx
+	dec bp
+	shl bp, 0x1
+; Get The Data
+	mov ax, [fs:data.kbuffer+bp]
+; Select It
+	mov [fs:data.kernel],ax
+; Next Command
+	jmp .switch
 
-	times 0x200-0x2-($-first) db 0x0
+.fs:
+; Kernel Segment
+	mov bx, 0x8C0
+		mov ds,bx
+		mov es,bx
+; Null
+	xor bp,bp
+; Function #8: Get Disk Info
+	mov ah, 0x8
+; Disk
+	mov dl, [fs:data.disk]
+; BIOS Disk Interrupt
+	int 0x13
+.fsl:
+; Function #2: Read Disk
+	mov ah, 0x2
+; Read One Sector
+	mov al, 0x1
+; Null
+	xor bx,bx
+	xor ch,ch
+	xor dh,dh
+; Disk
+	mov dl, [fs:data]
+; BIOS Disk Interrupt
+	int 0x13
+; The Last Word Of The Sector
+	mov ax, [0x200-0x2]
+; Check If It's A Kernel
+	cmp ax, 0x5733
+	je .fsa
+.fsd:
+; Next Sector
+	dec cl
+	jnz .fsl
+.fse:
+; Boot Sector
+	mov bx, 0x7C0
+		mov ds,bx
+		mov es,bx
+; Next Command
+	jmp .switch
+.fsa:
+; Size
+	mov al, [0x200-0x3]
+	mov [fs:data.sbuffer+bp],al
+	inc bp
+; Sector
+	mov [fs:data.sbuffer+bp],cl
+	inc bp
+; Print The Number And Name
+	push cx
+		mov ax,bp
+		shr ax, 0x1
+		call procedures.putn
+		mov al, '>'
+		call procedures.putc
+		mov si, 0x200-0x14
+		call procedures.puts
+		mov al, 0xD
+		call procedures.putc
+	pop cx
+; Next
+	jmp .fsd
+	
+.ss:
+; Null
+	xor cx,cx
+; Get The Number
+	call procedures.getn
+; Duplicate The Number
+	mov bp,cx
+	dec bp
+	shl bp, 0x1
+; Get The Data
+	mov ax, [fs:data.sbuffer+bp]
+; Select It
+	mov [fs:data.system],ax
+; Next Command
+	jmp .switch
+
+.sl:
+; Function #3: Write Disk
+	mov ah, 0x3
+; Write Four Sectors
+	mov al, 0x4
+; Save Data
+	mov bx, data
+; Cylinder
+	mov ch, 0x0
+; Sector
+	mov cl, 0x4
+; Head
+	mov dh, 0x0
+; Disk
+	mov dl, [fs:data]
+; BIOS Disk Interrupt
+	int 0x13
+.lo:
+; Load The Operating System
+	jmp loader	
+	
+.commands db "1) Find Kernels 2) Select Kernel",0xD,"3) Find Systems 4) Select System",0xD,"0) Load Once 5) Save And Load",0xD,0x0
+
+	times 0x200-0x2-($-boot) db 0x0
 	dw 0xAA55
 	
-second: 
-.add:
-; Get The Second operand
-		xor cx,cx
-		call procedures.getn
-	pop ax
-; Sum
-	add ax,cx
-	push ax
-; End
-		jmp .end
-.sub:
-; Get The Second Operand
-		xor cx,cx
-		call procedures.getn
-	pop ax
-; Substract
-	sub ax,cx
-	push ax
-; End
-		jmp .end
-.mul:
-; Get The Second operand
-		xor cx,cx
-		call procedures.getn
-	pop ax
-; Multiplicate
-	mul cx
-	push ax
-; End
-		jmp .end
-.div:
-; Get The Second operand
-		xor cx,cx
-		call procedures.getn
-; Catch Zero Division Error
-		test cx,cx
-		jz .error
-	pop ax
-; Divide
-	xor dx,dx
-	div cx
-; Return The Quotient
-	push ax
-; End
-		jmp .end
-.mod:
-; Get The Second operand
-		xor cx,cx
-		call procedures.getn
-; Catch Zero Division Error
-		test cx,cx
-		jz .error
-	pop ax
-; Divide
-	xor dx,dx
-	div cx
-; Return The Remainder
-	push dx
-; End
-		jmp .end
-.and:
-; Get The Second operand
-		xor cx,cx
-		call procedures.getn
-	pop ax
-; Bitwise AND
-	and ax,cx
-	push ax
-; End
-		jmp .end
-.or:
-; Get The Second operand
-		xor cx,cx
-		call procedures.getn
-	pop ax
-; Bitwise OR
-	or ax,cx
-	push ax
-; End
-		jmp .end
-.xor:
-; Get The Second operand
-		xor cx,cx
-		call procedures.getn
-	pop ax
-; Bitwise XOR
-	xor ax,cx
-	push ax
-; End
-		jmp .end
-.shl:
-; Get The Second operand
-		xor cx,cx
-		call procedures.getn
-	pop ax
-; Bit Left Shift
-	shl ax,cl
-	push ax
-; End
-		jmp .end
-.shr:
-; Get The Second operand
-		xor cx,cx
-		call procedures.getn
-	pop ax
-; Bit Right Shift 
-	shr ax,cl
-	push ax
-; End
-		jmp .end
-.not:
-; It's An Unary Operation
-	pop ax
-; Bitwise NOT
-	not ax
-	push ax
-; Write An Empty Character
-		mov al, 0x0
-		call procedures.putc
-; End
-		jmp .end
-.neg:
-; It's An Unary Operation
-	pop ax
-; Negate The Number
-	neg ax
-	push ax
-; Write An Empty Character
-		mov al, 0x0
-		call procedures.putc
-; End
-		jmp .end
-		
-.error:
-; Print The Error Message
-	pop ax
-	mov si, .msg
-	call procedures.puts
-; Next Operation
-	jmp first.operation
+loader: 
+; Selected Info
+	mov ax, [fs:data.kernel]
+; Kernel Size
+	mov cl,ah
+; Function #2: Read Disk
+	mov ah, 0x2
+; Kernel Segment
+	mov bx, 0x8C0
+		mov es,bx
+; Null
+	xor bx,bx
+	xor ch,ch
+	xor dh,dh
+; Disk
+	mov dl, [fs:data.disk]
+; BIOS Disk Interrupt
+	int 0x13
 	
-.end:
-; Backspace
-		mov al, 0x8
-		call procedures.putc
-; Equal Sign
-		mov al, '='
-		call procedures.putc
-; Get And Print The Result
-	pop ax
-	call procedures.putn
-; Print A New Line
-	mov al, 0xD
-	call procedures.putc
-; Next Operation	
-	jmp first.operation
-
-.msg db " {[(<Error>)]} ",0xD,0x0
+; Selected Info
+	mov ax, [fs:data.system]
+; System Size
+	mov cl,ah
+; Function #2: Read Disk
+	mov ah, 0x2
+; System Segment
+	mov bx, 0x1000
+		mov es,bx
+; Null
+	xor bx,bx
+	xor ch,ch
+	xor dh,dh
+; Disk
+	mov dl, [fs:data.disk]
+; BIOS Disk Interrupt
+	int 0x13
 	
-	times 0x200-($-second) db 0x0
+	jmp 0x8C0:0x0
+	
+	times 0x200-($-loader) db 0x0
 	
 procedures:
 .ret:
@@ -351,6 +420,22 @@ procedures:
 	add cx,ax
 ; Next Digit
 	jmp .getn
+	
+	times 0x200-($-procedures) db 0x0
 
 data:
+; Disk Number
+.disk 	db 0x0
+; Video Mode
+.video 	db 0x0
+; Kernel Data
+.kernel dw 0x0
+; System Data
+.system dw 0x0
 	times 0x200-($-data) db 0x0
+; Kernel Buffer
+.kbuffer times 0x200 db 0x0
+; System Buffer
+.sbuffer times 0x200 db 0x0
+; Free Buffer
+.fbuffer times 0x400 db 0x0
